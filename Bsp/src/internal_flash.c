@@ -87,7 +87,7 @@ static uint32_t Internal_Flash_Lock(void);
   * @brief  写入数据到Flash
   * @param  Address: 写入的起始地址 (必须4字节对齐)
   * @param  Data: 要写入的数据指针 (32位)
-  * @param  Length: 要写入的32位数据个数
+  * @param  Length: 要写入的字节数
   * @retval 操作状态
   */
 uint32_t Internal_Flash_Write(uint32_t Address, uint32_t *Data, uint32_t Length)
@@ -98,7 +98,8 @@ uint32_t Internal_Flash_Write(uint32_t Address, uint32_t *Data, uint32_t Length)
 	uint32_t *dest_addr = (uint32_t *)Address;
 	uint32_t *src_addr = Data;
 	uint32_t flash_word[8]; // Flash字为8个32位字
-	uint32_t endAddress = Address + (Length * 4); // 计算结束地址
+	uint32_t endAddress = Address + Length; // 计算结束地址
+	uint32_t wordCount = (Length + 3) / 4; // 计算32位字的数量（向上取整）
 	
 	/* 检查参数 */
 	if ((Address < FLASH_OPT_START_ADDRESS) || (Address >= FLASH_OPT_END_ADDRESS))
@@ -135,11 +136,11 @@ uint32_t Internal_Flash_Write(uint32_t Address, uint32_t *Data, uint32_t Length)
 	}
 	
 	/* STM32H7的Flash编程以256位(32字节)为单位，即8个32位字 */
-	while (index < Length)
+	while (index < wordCount)
 	{
 		/* 准备一个Flash字(8个32位字) */
 		row_index = 0;
-		while ((row_index < 8) && (index < Length))
+		while ((row_index < 8) && (index < wordCount))
 		{
 			flash_word[row_index] = src_addr[index];
 			row_index++;
@@ -181,14 +182,15 @@ uint32_t Internal_Flash_Write(uint32_t Address, uint32_t *Data, uint32_t Length)
   * @brief  从Flash读取数据
   * @param  Address: 读取的起始地址
   * @param  Buffer: 存储读取数据的缓冲区指针 (32位)
-  * @param  Length: 要读取的32位数据个数
+  * @param  Length: 要读取的字节数
   * @retval 操作状态
   */
 uint32_t Internal_Flash_Read(uint32_t Address, uint32_t *Buffer, uint32_t Length)
 {
 	uint32_t i;
 	uint32_t *src_addr = (uint32_t *)Address;
-	uint32_t endAddress = Address + (Length * 4); // 计算结束地址
+	uint32_t endAddress = Address + Length; // 计算结束地址
+	uint32_t wordCount = (Length + 3) / 4; // 计算32位字的数量（向上取整）
 	
 	/* 检查参数 */
 	if ((Address < FLASH_OPT_START_ADDRESS) || (Address >= FLASH_OPT_END_ADDRESS))
@@ -203,7 +205,7 @@ uint32_t Internal_Flash_Read(uint32_t Address, uint32_t *Buffer, uint32_t Length
 	}
 	
 	/* 直接读取数据 */
-	for (i = 0; i < Length; i++)
+	for (i = 0; i < wordCount; i++)
 	{
 		Buffer[i] = src_addr[i];
 	}
