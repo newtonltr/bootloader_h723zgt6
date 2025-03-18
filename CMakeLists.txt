@@ -61,6 +61,7 @@ file(GLOB_RECURSE SrcNetX
 
 file(GLOB_RECURSE SrcApp
     "${PROJECT_SOURCE_DIR}/Threads/src/*.c"
+    "${PROJECT_SOURCE_DIR}/Bsp/src/*.c"
     )
 
 
@@ -86,6 +87,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${PROJECT_SOURCE_DIR}/ThirdPartys/NetXDuo/crypto_libraries/inc
     ${PROJECT_SOURCE_DIR}/ThirdPartys/NetXDuo/user
     ${PROJECT_SOURCE_DIR}/Threads/inc
+    ${PROJECT_SOURCE_DIR}/Bsp/inc
 )
 
 # Add project symbols (macros)
