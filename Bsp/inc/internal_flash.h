@@ -92,20 +92,20 @@ uint32_t Internal_Flash_EraseSector(uint32_t StartSector, uint32_t SectorCount);
 /**
   * @brief  写入数据到Flash
   * @param  Address: 写入的起始地址 (必须4字节对齐)
-  * @param  Data: 要写入的数据指针 (32位)
+  * @param  Data: 要写入的数据指针 (8位)
   * @param  Length: 要写入的字节数
   * @retval 操作状态
   */
-uint32_t Internal_Flash_Write(uint32_t Address, uint32_t *Data, uint32_t Length);
+uint32_t Internal_Flash_Write(uint32_t Address, uint8_t *Data, uint32_t Length);
 
 /**
   * @brief  从Flash读取数据
   * @param  Address: 读取的起始地址
-  * @param  Buffer: 存储读取数据的缓冲区指针 (32位)
+  * @param  Buffer: 存储读取数据的缓冲区指针 (8位)
   * @param  Length: 要读取的字节数
   * @retval 操作状态
   */
-uint32_t Internal_Flash_Read(uint32_t Address, uint32_t *Buffer, uint32_t Length);
+uint32_t Internal_Flash_Read(uint32_t Address, uint8_t *Buffer, uint32_t Length);
 
 #ifdef __cplusplus
 }

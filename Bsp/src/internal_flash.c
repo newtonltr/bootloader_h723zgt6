@@ -86,20 +86,21 @@ static uint32_t Internal_Flash_Lock(void);
 /**
   * @brief  写入数据到Flash
   * @param  Address: 写入的起始地址 (必须4字节对齐)
-  * @param  Data: 要写入的数据指针 (32位)
+  * @param  Data: 要写入的数据指针 (8位)
   * @param  Length: 要写入的字节数
   * @retval 操作状态
   */
-uint32_t Internal_Flash_Write(uint32_t Address, uint32_t *Data, uint32_t Length)
+uint32_t Internal_Flash_Write(uint32_t Address, uint8_t *Data, uint32_t Length)
 {
 	uint32_t status = INTERNAL_FLASH_OK;
 	uint32_t index = 0;
 	uint32_t row_index = 0;
 	uint32_t *dest_addr = (uint32_t *)Address;
-	uint32_t *src_addr = Data;
 	uint32_t flash_word[8]; // Flash字为8个32位字
 	uint32_t endAddress = Address + Length; // 计算结束地址
 	uint32_t wordCount = (Length + 3) / 4; // 计算32位字的数量（向上取整）
+	uint32_t temp;
+	uint8_t *bytePtr;
 	
 	/* 检查参数 */
 	if ((Address < FLASH_OPT_START_ADDRESS) || (Address >= FLASH_OPT_END_ADDRESS))
@@ -136,15 +137,36 @@ uint32_t Internal_Flash_Write(uint32_t Address, uint32_t *Data, uint32_t Length)
 	}
 	
 	/* STM32H7的Flash编程以256位(32字节)为单位，即8个32位字 */
-	while (index < wordCount)
+	while (index < Length)
 	{
 		/* 准备一个Flash字(8个32位字) */
 		row_index = 0;
-		while ((row_index < 8) && (index < wordCount))
+		while ((row_index < 8) && (index + 3 < Length))
 		{
-			flash_word[row_index] = src_addr[index];
+			/* 从字节数组中构建32位字 */
+			temp = ((uint32_t)Data[index]) | 
+				   ((uint32_t)Data[index + 1] << 8) | 
+				   ((uint32_t)Data[index + 2] << 16) | 
+				   ((uint32_t)Data[index + 3] << 24);
+			
+			flash_word[row_index] = temp;
 			row_index++;
-			index++;
+			index += 4;
+		}
+		
+		/* 处理剩余不足4字节的数据 */
+		if (index < Length && row_index < 8)
+		{
+			temp = 0xFFFFFFFF;
+			bytePtr = (uint8_t *)&temp;
+			
+			for (uint32_t i = 0; i < 4 && index < Length; i++, index++)
+			{
+				bytePtr[i] = Data[index];
+			}
+			
+			flash_word[row_index] = temp;
+			row_index++;
 		}
 		
 		/* 如果不足8个字，用0xFF填充 */
@@ -181,16 +203,15 @@ uint32_t Internal_Flash_Write(uint32_t Address, uint32_t *Data, uint32_t Length)
 /**
   * @brief  从Flash读取数据
   * @param  Address: 读取的起始地址
-  * @param  Buffer: 存储读取数据的缓冲区指针 (32位)
+  * @param  Buffer: 存储读取数据的缓冲区指针 (8位)
   * @param  Length: 要读取的字节数
   * @retval 操作状态
   */
-uint32_t Internal_Flash_Read(uint32_t Address, uint32_t *Buffer, uint32_t Length)
+uint32_t Internal_Flash_Read(uint32_t Address, uint8_t *Buffer, uint32_t Length)
 {
 	uint32_t i;
-	uint32_t *src_addr = (uint32_t *)Address;
+	uint8_t *src_addr = (uint8_t *)Address;
 	uint32_t endAddress = Address + Length; // 计算结束地址
-	uint32_t wordCount = (Length + 3) / 4; // 计算32位字的数量（向上取整）
 	
 	/* 检查参数 */
 	if ((Address < FLASH_OPT_START_ADDRESS) || (Address >= FLASH_OPT_END_ADDRESS))
@@ -205,7 +226,7 @@ uint32_t Internal_Flash_Read(uint32_t Address, uint32_t *Buffer, uint32_t Length
 	}
 	
 	/* 直接读取数据 */
-	for (i = 0; i < wordCount; i++)
+	for (i = 0; i < Length; i++)
 	{
 		Buffer[i] = src_addr[i];
 	}
