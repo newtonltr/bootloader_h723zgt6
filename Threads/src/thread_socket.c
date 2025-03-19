@@ -1,4 +1,5 @@
 #include "thread_socket.h"
+#include "firmware_opt.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -86,10 +87,6 @@ void thread_socket_entry(ULONG thread_input)
         nx_tcp_socket_delete(&tcp_socket);
         return;
     }
-        
-    
-    // 发送连接成功消息
-    send_message_with_timestamp("client connected");
     
     while (1) {
         // 等待客户端连接

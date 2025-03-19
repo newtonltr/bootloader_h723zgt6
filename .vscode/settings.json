@@ -1,0 +1,6 @@
+{
+	"files.associations": {
+		"thread_socket.h": "c",
+		"firmware_opt.h": "c"
+	}
+}
