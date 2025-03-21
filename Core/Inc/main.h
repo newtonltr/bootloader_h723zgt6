@@ -33,6 +33,7 @@ extern "C" {
 /* USER CODE BEGIN Includes */
 #include <math.h>
 #include <string.h>
+#include <stdarg.h>
 #include "eth.h"
 #include "tx_api.h"
 #include "nx_api.h"

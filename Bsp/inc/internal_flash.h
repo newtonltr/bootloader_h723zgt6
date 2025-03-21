@@ -52,11 +52,7 @@ typedef enum {
 	INTERNAL_FLASH_SECTOR_MAX
 } FLASH_SectorTypeDef;
 
-/* 可操作扇区范围 */
-#define FLASH_OPT_START_SECTOR  INTERNAL_FLASH_SECTOR_2  /* 可操作起始扇区 */
-#define FLASH_OPT_END_SECTOR    INTERNAL_FLASH_SECTOR_4  /* 可操作结束扇区 */
-#define FLASH_OPT_SECTOR_COUNT  (FLASH_OPT_END_SECTOR-FLASH_OPT_START_SECTOR+1)  /* 可操作扇区数量 */
-
+/* ADDRESS 定义 */
 /* Bootloader区域细分 */
 #define BOOTLOADER_CODE_BASE      FLASH_SECTOR0_BASE           /* Bootloader代码区起始地址 */
 #define BOOTLOADER_CODE_END       (FLASH_SECTOR1_BASE+FLASH_SECTOR_SIZE-1)  /* Bootloader代码区结束地址 */
@@ -75,11 +71,18 @@ typedef enum {
 #define APP_END                   (FLASH_SECTOR7_BASE+FLASH_SECTOR_SIZE-1)  /* 应用程序结束地址 */
 #define APP_SIZE                  (APP_END-APP_BASE+1)         /* 应用程序大小: 384KB */
 
-/* 程序可操控的flash区域限制为firmware区域 */
-#define FLASH_OPT_START_ADDRESS   BOOTLOADER_FIRMWARE_BASE     /* 可操作Flash起始地址 */
-#define FLASH_OPT_END_ADDRESS     BOOTLOADER_FIRMWARE_END      /* 可操作Flash结束地址 */
-#define FLASH_OPT_SIZE			  BOOTLOADER_FIRMWARE_SIZE     /* 可操作Flash总大小: 384KB */
+/* sector 定义 */
+#define BOOTLOADER_CODE_SECTOR_START  INTERNAL_FLASH_SECTOR_0  /* Bootloader代码区起始扇区 */
+#define BOOTLOADER_CODE_SECTOR_END    INTERNAL_FLASH_SECTOR_1  /* Bootloader代码区结束扇区 */
+#define BOOTLOADER_CODE_SECTOR_COUNT  (BOOTLOADER_CODE_SECTOR_END-BOOTLOADER_CODE_SECTOR_START+1)  /* Bootloader代码区扇区数量 */
 
+#define BOOTLOADER_FIRMWARE_SECTOR_START  INTERNAL_FLASH_SECTOR_2  /* Bootloader固件区起始扇区 */
+#define BOOTLOADER_FIRMWARE_SECTOR_END    INTERNAL_FLASH_SECTOR_4  /* Bootloader固件区结束扇区 */
+#define BOOTLOADER_FIRMWARE_SECTOR_COUNT  (BOOTLOADER_FIRMWARE_SECTOR_END-BOOTLOADER_FIRMWARE_SECTOR_START+1)  /* Bootloader固件区扇区数量 */
+
+#define APP_SECTOR_START           INTERNAL_FLASH_SECTOR_5  /* 应用程序起始扇区 */
+#define APP_SECTOR_END             INTERNAL_FLASH_SECTOR_7  /* 应用程序结束扇区 */
+#define APP_SECTOR_COUNT           (APP_SECTOR_END-APP_SECTOR_START+1)  /* 应用程序扇区数量 */
 
 /**
   * @brief  按扇区擦除Flash

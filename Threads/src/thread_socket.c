@@ -8,25 +8,34 @@ NX_TCP_SOCKET tcp_socket;
 #define TCP_SERVER_PORT 7000  // 服务器监听端口
 
 // 消息缓冲区
-#define MAX_MESSAGE_SIZE 256
-static char message_buffer[MAX_MESSAGE_SIZE];
+#define MAX_MESSAGE_SIZE 512
+static uint8_t message_buffer[MAX_MESSAGE_SIZE];
 
-// 发送带时间戳、IP地址和端口号的消息
-UINT send_message_with_timestamp(const char* message)
+UINT iap_log(char* format, ...)
 {
     NX_PACKET *packet_ptr;
     UINT status;
-    char timestamp_message[MAX_MESSAGE_SIZE];
     ULONG current_time = HAL_GetTick(); // 获取HAL时间戳
     ULONG ip_address = ip0_address;
     UINT port;
+    uint16_t max_head_len = 256;
+    uint16_t max_msg_len = MAX_MESSAGE_SIZE;
+    uint16_t max_cplt_msg_len = 256 + MAX_MESSAGE_SIZE;
+    char message[max_msg_len];
+    char cplt_msg[max_cplt_msg_len];
+    va_list args;
+    
+    // 处理可变参数，格式化消息
+    va_start(args, format);
+    vsnprintf(message, MAX_MESSAGE_SIZE, format, args);
+    va_end(args);
     
     // 获取当前IP地址和端口号
     nx_ip_address_get(&ip_0, &ip_address, NULL);
     port = TCP_SERVER_PORT;
     
     // 格式化消息，添加时间戳、IP地址和端口号
-    snprintf(timestamp_message, MAX_MESSAGE_SIZE, "[%lu ms][%lu.%lu.%lu.%lu:%d] %s", 
+    snprintf(cplt_msg, max_cplt_msg_len, "[%lu ms][%lu.%lu.%lu.%lu:%d] %s", 
              current_time, 
              (ip_address >> 24) & 0xFF,
              (ip_address >> 16) & 0xFF,
@@ -44,8 +53,8 @@ UINT send_message_with_timestamp(const char* message)
     
     // 将消息附加到数据包
     status = nx_packet_data_append(packet_ptr, 
-                                  (VOID *)timestamp_message, 
-                                  strlen(timestamp_message), 
+                                  (VOID *)cplt_msg, 
+                                  strlen(cplt_msg), 
                                   &pool_0, 
                                   NX_WAIT_FOREVER);
     if (status != NX_SUCCESS)
@@ -64,13 +73,20 @@ UINT send_message_with_timestamp(const char* message)
     return status;
 }
 
+// firmware
+struct firmware_opt_t firmware_opt;
+
 // 线程入口函数
 void thread_socket_entry(ULONG thread_input)
 {
     UINT status;
     NX_PACKET *receive_packet;
     ULONG bytes_read;
+    struct firmware_opt_t *iap = &firmware_opt;
     
+    // 初始化iap
+    // firmware_opt_init(iap);
+
     // 创建TCP服务器套接字
     status = nx_tcp_socket_create(&ip_0, &tcp_socket, "TCP Server Socket", 
                                  NX_IP_NORMAL, NX_FRAGMENT_OKAY, NX_IP_TIME_TO_LIVE, 
@@ -100,7 +116,7 @@ void thread_socket_entry(ULONG thread_input)
         }
 
         // 发送连接成功消息
-        send_message_with_timestamp("client connected");
+        iap_log("client connected");
 
         while (1)
         {
@@ -113,7 +129,7 @@ void thread_socket_entry(ULONG thread_input)
                     // 确保字符串以null结尾
                     message_buffer[bytes_read < MAX_MESSAGE_SIZE? bytes_read : MAX_MESSAGE_SIZE - 1] = '\0';
                     // 添加时间戳并回显收到的消息
-                    send_message_with_timestamp(message_buffer);
+                    iap_log((char *)message_buffer);
                 }
                 // 释放数据包
                 nx_packet_release(receive_packet);

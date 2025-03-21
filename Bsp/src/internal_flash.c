@@ -40,13 +40,6 @@ static uint32_t Internal_Flash_Lock(void);
 		 return INTERNAL_FLASH_ERROR;
 	 }
 	 
-	 /* 检查扇区是否在可操作范围内 */
-	 if ((StartSector < FLASH_OPT_START_SECTOR) || 
-		 (endSector > FLASH_OPT_END_SECTOR))
-	 {
-		 return INTERNAL_FLASH_INVALID_ADDR;
-	 }
-	 
 	 /* 解锁Flash */
 	 status = Internal_Flash_Unlock();
 	 if (status != INTERNAL_FLASH_OK)
@@ -101,18 +94,6 @@ uint32_t Internal_Flash_Write(uint32_t Address, uint8_t *Data, uint32_t Length)
 	uint32_t wordCount = (Length + 3) / 4; // 计算32位字的数量（向上取整）
 	uint32_t temp;
 	uint8_t *bytePtr;
-	
-	/* 检查参数 */
-	if ((Address < FLASH_OPT_START_ADDRESS) || (Address >= FLASH_OPT_END_ADDRESS))
-	{
-		return INTERNAL_FLASH_INVALID_ADDR;
-	}
-	
-	/* 检查写入是否超出可操作范围 */
-	if (endAddress > FLASH_OPT_END_ADDRESS)
-	{
-		return INTERNAL_FLASH_INVALID_ADDR;
-	}
 	
 	/* 检查地址是否4字节对齐 */
 	if ((Address & 0x3) != 0)
@@ -212,19 +193,7 @@ uint32_t Internal_Flash_Read(uint32_t Address, uint8_t *Buffer, uint32_t Length)
 	uint32_t i;
 	uint8_t *src_addr = (uint8_t *)Address;
 	uint32_t endAddress = Address + Length; // 计算结束地址
-	
-	/* 检查参数 */
-	if ((Address < FLASH_OPT_START_ADDRESS) || (Address >= FLASH_OPT_END_ADDRESS))
-	{
-		return INTERNAL_FLASH_INVALID_ADDR;
-	}
-	
-	/* 检查读取是否超出可操作范围 */
-	if (endAddress > FLASH_OPT_END_ADDRESS)
-	{
-		return INTERNAL_FLASH_INVALID_ADDR;
-	}
-	
+		
 	/* 直接读取数据 */
 	for (i = 0; i < Length; i++)
 	{
