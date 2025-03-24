@@ -1,6 +1,7 @@
 #include "thread_init.h"
 #include "nx_stm32_eth_driver.h"
 #include "thread_socket.h"
+#include "firmware_opt.h"
 
 // ---------thread parameters
 // thread init parameters
@@ -78,7 +79,6 @@ void  tx_application_define(void *first_unused_memory)
 
 }
 
-
 void thread_init(ULONG input)  // 将UINT改为ULONG
 {
 	// 创建socket线程
@@ -94,6 +94,10 @@ void thread_init(ULONG input)  // 将UINT改为ULONG
 		TX_AUTO_START);
 	
 	while (1) {
+		gloabal_time_ms += 100;
+		if(global_boot_stat == BOOT_STAT_IDLE && gloabal_time_ms >= 8000) {
+			jump_to_app();
+		}
 		sleep_ms(100);
 	}
 }

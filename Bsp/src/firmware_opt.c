@@ -7,6 +7,9 @@ static uint8_t firmware_write(struct firmware_opt_t *this);
 
 uint8_t iap_protocol_buffer[IAP_PROTOCOL_BUFFER_SIZE];
 
+uint32_t gloabal_time_ms = 0;
+uint32_t global_boot_stat = BOOT_STAT_IDLE;
+
 uint8_t firmware_opt_init(struct firmware_opt_t *this)
 {
 	uint8_t status = 0;
@@ -17,6 +20,11 @@ uint8_t firmware_opt_init(struct firmware_opt_t *this)
 	this->index			= 0;
 	this->recv 			= frame_recv;
 	this->write 		= firmware_write;
+
+	this->buffer = iap_protocol_buffer;
+	this->buffer_size = IAP_PROTOCOL_BUFFER_SIZE;
+
+	memset(this->buffer, 0, this->buffer_size);
 
 	status = sector_erase(BOOTLOADER_FIRMWARE_SECTOR_START, BOOTLOADER_FIRMWARE_SECTOR_COUNT);
 
@@ -101,7 +109,7 @@ static uint8_t firmware_write(struct firmware_opt_t *this)
 	if (status == FIRMWARE_OPT_FAIL) {
 		return status;
 	}
-	status = flash_write(APP_BASE, (uint8_t *)this->app_start_addr, bytes);
+	status = flash_write(this->app_start_addr, (uint8_t *)this->firm_start_addr, bytes);
 	if (status != INTERNAL_FLASH_OK) {
 		status = FIRMWARE_OPT_FAIL;
 		return status;	
@@ -115,4 +123,46 @@ static uint8_t firmware_write(struct firmware_opt_t *this)
 
 }
 
+void jump_to_app(void)
+{
+    typedef void (*pFunction)(void);
+    uint32_t jump_address;
+    pFunction jump_to_application;
+    
+    // 禁用所有中断
+    __disable_irq();
+	for (uint32_t i = 0; i < 8; i++) {
+		NVIC->ICER[i] = 0xFFFFFFFF;  // 禁用所有中断
+		NVIC->ICPR[i] = 0xFFFFFFFF;  // 清除所有挂起中断
+	}
+    
+    // 关闭所有外设
+    HAL_RCC_DeInit();
+    
+    // 禁用SysTick
+    SysTick->CTRL = 0;
+    SysTick->LOAD = 0;
+    SysTick->VAL = 0;
+    
+    // 重新映射向量表
+    SCB->VTOR = APP_BASE;
+    __DSB();
 
+    // 获取应用程序的复位处理程序地址
+    // 应用程序的复位向量位于向量表的第二个条目(偏移量为4)
+    jump_address = *(__IO uint32_t*)(APP_BASE + 4);
+    jump_to_application = (pFunction)jump_address;
+    
+    // 初始化应用程序的栈指针(SP)
+    // 栈指针位于向量表的第一个条目
+    __set_MSP(*(__IO uint32_t*)APP_BASE);
+	__DSB();
+
+    // 清除流水线
+    __ISB();
+    
+    // 跳转到应用程序
+    jump_to_application();
+    
+    // 注意：此处代码永远不会执行到，因为已经跳转到应用程序
+}

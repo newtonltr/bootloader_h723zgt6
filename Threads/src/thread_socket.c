@@ -72,7 +72,40 @@ UINT iap_log(char* format, ...)
     
     return status;
 }
+UINT iap_ack(uint32_t index) {
+    NX_PACKET *packet_ptr;
+    UINT status;
+	uint32_t ack[2] = {
+		PROTOCOL_ACK_HEAD,
+		0};
 
+    ack[1] = index;
+
+    // 分配数据包
+    status = nx_packet_allocate(&pool_0, &packet_ptr, NX_TCP_PACKET, NX_WAIT_FOREVER);
+    if (status!= NX_SUCCESS) {
+        return status;
+	}
+
+    // 将消息附加到数据包
+    status = nx_packet_data_append(packet_ptr,
+                                  (VOID *)ack,
+                                  sizeof(ack),
+                                  &pool_0,
+                                  NX_WAIT_FOREVER);
+    if (status!= NX_SUCCESS) {
+        nx_packet_release(packet_ptr);
+        return status;
+	}
+
+    // 发送数据包
+    status = nx_tcp_socket_send(&tcp_socket, packet_ptr, NX_WAIT_FOREVER);
+    if (status!= NX_SUCCESS) {
+        nx_packet_release(packet_ptr);
+    }
+
+    return status;
+}
 // firmware
 struct firmware_opt_t firmware_opt;
 
@@ -84,9 +117,6 @@ void thread_socket_entry(ULONG thread_input)
     ULONG bytes_read;
     struct firmware_opt_t *iap = &firmware_opt;
     
-    // 初始化iap
-    // firmware_opt_init(iap);
-
     // 创建TCP服务器套接字
     status = nx_tcp_socket_create(&ip_0, &tcp_socket, "TCP Server Socket", 
                                  NX_IP_NORMAL, NX_FRAGMENT_OKAY, NX_IP_TIME_TO_LIVE, 
@@ -115,8 +145,18 @@ void thread_socket_entry(ULONG thread_input)
             return;
         }
 
+		global_boot_stat = BOOT_STAT_SOCKET;
+
         // 发送连接成功消息
         iap_log("client connected");
+        // 初始化iap
+        status = firmware_opt_init(iap);
+        if (status == FIRMWARE_OPT_FAIL) {
+            iap_log("iap init fail, jump to old firmware");
+            jump_to_app();
+        } else if (status == FIRMWARE_OPT_SUCCESS) {
+            iap_log("iap init success, please start transfer");
+        }
 
         while (1)
         {
@@ -124,12 +164,40 @@ void thread_socket_entry(ULONG thread_input)
             status = nx_tcp_socket_receive(&tcp_socket, &receive_packet, NX_WAIT_FOREVER);
             if (status == NX_SUCCESS) {
                 // 读取数据包内容
-                status = nx_packet_data_retrieve(receive_packet, message_buffer, &bytes_read);
+                status = nx_packet_data_retrieve(receive_packet, iap->buffer, &bytes_read);
                 if (status == NX_SUCCESS && bytes_read > 0) {
-                    // 确保字符串以null结尾
-                    message_buffer[bytes_read < MAX_MESSAGE_SIZE? bytes_read : MAX_MESSAGE_SIZE - 1] = '\0';
-                    // 添加时间戳并回显收到的消息
-                    iap_log((char *)message_buffer);
+                    status = iap->recv(iap, iap->buffer, bytes_read);
+                    if (status == FIRMWARE_OPT_FAIL) {
+                        iap_log("iap recv fail, reinit flash, please restart transfer");
+                        status = firmware_opt_init(iap);
+                        if (status == FIRMWARE_OPT_FAIL) {
+                            iap_log("iap init fail, jump to old firmware");
+                            jump_to_app();  
+                        } else if (status == FIRMWARE_OPT_SUCCESS) {
+                            iap_log("iap init success"); 
+                        }
+                    } else if (status == FIRMWARE_OPT_RECV_CPLT) {
+                        iap_log("iap recv cplt, start upgrade");
+                        status = iap->write(iap);
+                        if (status == FIRMWARE_OPT_FAIL) {
+                            iap_log("iap upgrade fail, please reflash by other way, or try again");
+                            status = firmware_opt_init(iap);
+                            if (status == FIRMWARE_OPT_FAIL) {
+                                iap_log("iap init fail, please reflash by other way");
+                            } else if (status == FIRMWARE_OPT_SUCCESS) {
+                                iap_log("iap init success"); 
+                            }
+                        } else if (status == FIRMWARE_OPT_WRITE_CPLT) {
+                            iap_log("iap upgrade success, jump to new firmware");
+                            jump_to_app();
+                        }
+                    } else if (status == FIRMWARE_OPT_SUCCESS) {
+                        status = iap_ack(iap->index);
+                        if (status != NX_SUCCESS) {
+                            iap_log("iap ack fail");
+                        }	
+                    }
+
                 }
                 // 释放数据包
                 nx_packet_release(receive_packet);
