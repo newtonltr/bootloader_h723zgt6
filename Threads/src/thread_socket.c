@@ -194,7 +194,13 @@ void thread_socket_entry(ULONG thread_input)
                     } else if (status == FIRMWARE_OPT_SUCCESS) {
                         status = iap_ack(iap->index);
                         if (status != NX_SUCCESS) {
-                            iap_log("iap ack fail");
+                            iap_log("iap ack fail, please restart transfer");
+                            status = firmware_opt_init(iap);
+                            if (status == FIRMWARE_OPT_FAIL) {
+                                iap_log("iap init fail, please reflash by other way");
+                            } else if (status == FIRMWARE_OPT_SUCCESS) {
+                                iap_log("iap init success");
+                            }
                         }	
                     }
 
