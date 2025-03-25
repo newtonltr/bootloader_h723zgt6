@@ -27,7 +27,7 @@ ULONG  arp_space_area[52*20 / sizeof(ULONG)] __attribute__((section(".NetXPoolSe
 #define IP_ADDR0                        192
 #define IP_ADDR1                        168
 #define IP_ADDR2                        0
-#define IP_ADDR3                        200
+#define IP_ADDR3                        202
 
 ULONG  ip0_address = IP_ADDRESS(IP_ADDR0, IP_ADDR1, IP_ADDR2, IP_ADDR3);
 
@@ -96,7 +96,7 @@ void thread_init(ULONG input)  // 将UINT改为ULONG
 	while (1) {
 		gloabal_time_ms += 100;
 		if(global_boot_stat == BOOT_STAT_IDLE && gloabal_time_ms >= 8000) {
-			jump_to_app();
+			// jump_to_app();
 		}
 		sleep_ms(100);
 	}
