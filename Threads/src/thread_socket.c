@@ -1,121 +1,32 @@
 #include "thread_socket.h"
-#include "firmware_opt.h"
 #include <stdio.h>
 #include <string.h>
+#include "fast_iap.h"
 
 // TCP socket相关参数定义在这个文件中
+// 用于和上位机进行bin文件传输协议
 NX_TCP_SOCKET tcp_socket;
 #define TCP_SERVER_PORT 7000  // 服务器监听端口
 
-// 消息缓冲区
-#define MAX_MESSAGE_SIZE 512
-static uint8_t message_buffer[MAX_MESSAGE_SIZE];
+// 用于打印日志
+NX_TCP_SOCKET log_socket;
+#define LOG_SERVER_PORT 8000  // 日志服务器端口
 
-UINT iap_log(char* format, ...)
+
+// 该函数不直接发送数据，而是通过threadx的queue_log(在别的文件进行初始化)发送数据的地址到日志线程，日志线程等待到队列后再提取数据发送
+UINT fi_socket_log(char* format, ...)
 {
-    NX_PACKET *packet_ptr;
-    UINT status;
-    ULONG current_time = HAL_GetTick(); // 获取HAL时间戳
-    ULONG ip_address = ip0_address;
-    UINT port;
-    uint16_t max_head_len = 256;
-    uint16_t max_msg_len = MAX_MESSAGE_SIZE;
-    uint16_t max_cplt_msg_len = 256 + MAX_MESSAGE_SIZE;
-    char message[max_msg_len];
-    char cplt_msg[max_cplt_msg_len];
-    va_list args;
-    
-    // 处理可变参数，格式化消息
-    va_start(args, format);
-    vsnprintf(message, MAX_MESSAGE_SIZE, format, args);
-    va_end(args);
-    
-    // 获取当前IP地址和端口号
-    nx_ip_address_get(&ip_0, &ip_address, NULL);
-    port = TCP_SERVER_PORT;
-    
-    // 格式化消息，添加时间戳、IP地址和端口号
-    snprintf(cplt_msg, max_cplt_msg_len, "[%lu ms][%lu.%lu.%lu.%lu:%d] %s", 
-             current_time, 
-             (ip_address >> 24) & 0xFF,
-             (ip_address >> 16) & 0xFF,
-             (ip_address >> 8) & 0xFF,
-             ip_address & 0xFF,
-             port,
-             message);
-    
-    // 分配数据包
-    status = nx_packet_allocate(&pool_0, &packet_ptr, NX_TCP_PACKET, NX_WAIT_FOREVER);
-    if (status != NX_SUCCESS)
-    {
-        return status;
-    }
-    
-    // 将消息附加到数据包
-    status = nx_packet_data_append(packet_ptr, 
-                                  (VOID *)cplt_msg, 
-                                  strlen(cplt_msg), 
-                                  &pool_0, 
-                                  NX_WAIT_FOREVER);
-    if (status != NX_SUCCESS)
-    {
-        nx_packet_release(packet_ptr);
-        return status;
-    }
-    
-    // 发送数据包
-    status = nx_tcp_socket_send(&tcp_socket, packet_ptr, NX_WAIT_FOREVER);
-    if (status != NX_SUCCESS)
-    {
-        nx_packet_release(packet_ptr);
-    }
-    
+    uint32_t status = 0;
     return status;
 }
-UINT iap_ack(uint32_t index) {
-    NX_PACKET *packet_ptr;
-    UINT status;
-	uint32_t ack[2] = {
-		PROTOCOL_ACK_HEAD,
-		0};
 
-    ack[1] = index;
-
-    // 分配数据包
-    status = nx_packet_allocate(&pool_0, &packet_ptr, NX_TCP_PACKET, NX_WAIT_FOREVER);
-    if (status!= NX_SUCCESS) {
-        return status;
-	}
-
-    // 将消息附加到数据包
-    status = nx_packet_data_append(packet_ptr,
-                                  (VOID *)ack,
-                                  sizeof(ack),
-                                  &pool_0,
-                                  NX_WAIT_FOREVER);
-    if (status!= NX_SUCCESS) {
-        nx_packet_release(packet_ptr);
-        return status;
-	}
-
-    // 发送数据包
-    status = nx_tcp_socket_send(&tcp_socket, packet_ptr, NX_WAIT_FOREVER);
-    if (status!= NX_SUCCESS) {
-        nx_packet_release(packet_ptr);
-    }
-
-    return status;
-}
-// firmware
-struct firmware_opt_t firmware_opt;
-
-// 线程入口函数
+// 线程入口函数，该线程用于fast-iap的socket通信
 void thread_socket_entry(ULONG thread_input)
 {
     UINT status;
     NX_PACKET *receive_packet;
     ULONG bytes_read;
-    struct firmware_opt_t *iap = &firmware_opt;
+    struct fast_iap_t *fi = &fast_iap;
     
     // 创建TCP服务器套接字
     status = nx_tcp_socket_create(&ip_0, &tcp_socket, "TCP Server Socket", 
@@ -147,62 +58,15 @@ void thread_socket_entry(ULONG thread_input)
 
 		global_boot_stat = BOOT_STAT_SOCKET;
 
-        // 发送连接成功消息
-        iap_log("client connected");
-        // 初始化iap
-        status = firmware_opt_init(iap);
-        if (status == FIRMWARE_OPT_FAIL) {
-            iap_log("iap init fail, jump to old firmware");
-            jump_to_app();
-        } else if (status == FIRMWARE_OPT_SUCCESS) {
-            iap_log("iap init success, please start transfer");
-        }
-
         while (1)
         {
             // 接收数据包
             status = nx_tcp_socket_receive(&tcp_socket, &receive_packet, NX_WAIT_FOREVER);
             if (status == NX_SUCCESS) {
                 // 读取数据包内容
-                status = nx_packet_data_retrieve(receive_packet, iap->buffer, &bytes_read);
+                status = nx_packet_data_retrieve(receive_packet, fi->buffer, &bytes_read);
                 if (status == NX_SUCCESS && bytes_read > 0) {
-                    status = iap->recv(iap, iap->buffer, bytes_read);
-                    if (status == FIRMWARE_OPT_FAIL) {
-                        iap_log("iap recv fail, reinit flash, please restart transfer");
-                        status = firmware_opt_init(iap);
-                        if (status == FIRMWARE_OPT_FAIL) {
-                            iap_log("iap init fail, jump to old firmware");
-                            jump_to_app();  
-                        } else if (status == FIRMWARE_OPT_SUCCESS) {
-                            iap_log("iap init success"); 
-                        }
-                    } else if (status == FIRMWARE_OPT_RECV_CPLT) {
-                        iap_log("iap recv cplt, start upgrade");
-                        status = iap->write(iap);
-                        if (status == FIRMWARE_OPT_FAIL) {
-                            iap_log("iap upgrade fail, please reflash by other way, or try again");
-                            status = firmware_opt_init(iap);
-                            if (status == FIRMWARE_OPT_FAIL) {
-                                iap_log("iap init fail, please reflash by other way");
-                            } else if (status == FIRMWARE_OPT_SUCCESS) {
-                                iap_log("iap init success"); 
-                            }
-                        } else if (status == FIRMWARE_OPT_WRITE_CPLT) {
-                            iap_log("iap upgrade success, jump to new firmware");
-                            jump_to_app();
-                        }
-                    } else if (status == FIRMWARE_OPT_SUCCESS) {
-                        status = iap_ack(iap->index);
-                        if (status != NX_SUCCESS) {
-                            iap_log("iap ack fail, please restart transfer");
-                            status = firmware_opt_init(iap);
-                            if (status == FIRMWARE_OPT_FAIL) {
-                                iap_log("iap init fail, please reflash by other way");
-                            } else if (status == FIRMWARE_OPT_SUCCESS) {
-                                iap_log("iap init success");
-                            }
-                        }	
-                    }
+                    // 处理接收到的bin文件数据
 
                 }
                 // 释放数据包
@@ -214,5 +78,22 @@ void thread_socket_entry(ULONG thread_input)
                 break;
             }
         }  
+    }
+}
+
+void thread_fast_iap(ULONG thread_input)
+{
+    while (1) {
+
+    }
+}
+
+// 无限等待queue_log,queue_log承载着数据的地址，本线程负责建立tcp服务器，等待客户端连接，
+// 并将数据通过log_socket端口发送出去
+// 不接收数据，只做发送，但同样做断连检测并做重连
+void thread_log_server(ULONG thread_input)
+{
+    while (1) {
+
     }
 }
